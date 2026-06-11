@@ -1,0 +1,232 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  MEMBER
+  PRESIDENT
+  VICE_PRESIDENT
+  GENERAL_SECRETARY
+  ASST_GEN_SECRETARY
+  SPEAKER
+  TECHNICAL_DIRECTOR
+  SUPER_ADMIN
+}
+
+enum MembershipStatus {
+  PENDING
+  ACTIVE
+  EXPIRED
+  SUSPENDED
+}
+
+enum EventCategory {
+  FRIDAY_SESSION
+  WORKSHOP
+  HACKATHON
+  COMMUNITY_MEETUP
+  RESEARCH_EVENT
+  INNOVATION_CHALLENGE
+  CAREER_TALK
+  OTHER
+}
+
+enum AttendanceStatus {
+  PRESENT
+  DUPLICATE
+}
+
+enum CertificateCategory {
+  ACTIVE_PARTICIPATION
+  ATTENDANCE_EXCELLENCE
+  LEADERSHIP_SERVICE
+  COMMUNITY_CONTRIBUTION
+  INNOVATION_EXCELLENCE
+}
+
+enum PointsCategory {
+  FRIDAY_SESSION
+  WORKSHOP
+  HACKATHON
+  COMMUNITY_EVENT
+  RESEARCH
+  LEADERSHIP
+  INNOVATION_CHALLENGE
+}
+
+enum NotificationType {
+  REMINDER
+  ACHIEVEMENT
+  RANKING
+  BADGE
+  SYSTEM
+}
+
+enum RewardCategory {
+  MOST_CONSISTENT
+  ATTENDANCE_CHAMPION
+  TOP_INNOVATOR
+  COMMUNITY_CONTRIBUTOR
+  WORKSHOP_CHAMPION
+  OUTSTANDING_FRESHER
+  BEST_FEMALE_TECH
+  EMERGING_LEADER
+}
+
+model User {
+  id                 String           @id @default(uuid())
+  registrationNumber String           @unique
+  firstName          String
+  lastName           String
+  email              String           @unique
+  phoneNumber        String?
+  course             String
+  yearGroup          Int
+  imageUrl           String?
+  role               Role             @default(MEMBER)
+  membershipStatus   MembershipStatus @default(PENDING)
+  qrCode             String           @unique @default(uuid())
+  passwordHash       String
+  totalPoints        Int              @default(0)
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  createdEvents       Event[]
+  openedSessions      AttendanceSession[]    @relation("SessionOpener")
+  scannedRecords      AttendanceRecord[]     @relation("Scanner")
+  attendanceRecords   AttendanceRecord[]     @relation("Attendee")
+  memberBadges        MemberBadge[]
+  certificates        Certificate[]
+  pointsTransactions  PointsTransaction[]
+  notifications       Notification[]
+  rewards             Reward[]
+}
+
+model Event {
+  id                  String        @id @default(uuid())
+  title               String
+  category            EventCategory
+  date                DateTime
+  time                String
+  venue               String
+  description         String?
+  maxCapacity         Int?
+  organizingCommunity String?
+  createdById         String
+  isActive            Boolean       @default(true)
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+
+  createdBy       User                @relation(fields: [createdById], references: [id])
+  attendanceSession AttendanceSession?
+  pointsTransactions PointsTransaction[]
+}
+
+model AttendanceSession {
+  id        String    @id @default(uuid())
+  eventId   String    @unique
+  openedAt  DateTime  @default(now())
+  closedAt  DateTime?
+  openedById String
+  isActive  Boolean   @default(true)
+
+  event    Event             @relation(fields: [eventId], references: [id])
+  openedBy User              @relation("SessionOpener", fields: [openedById], references: [id])
+  records  AttendanceRecord[]
+}
+
+model AttendanceRecord {
+  id          String           @id @default(uuid())
+  sessionId   String
+  memberId    String
+  scannedById String
+  timestamp   DateTime         @default(now())
+  status      AttendanceStatus @default(PRESENT)
+  createdAt   DateTime         @default(now())
+
+  session  AttendanceSession @relation(fields: [sessionId], references: [id])
+  member   User              @relation("Attendee", fields: [memberId], references: [id])
+  scannedBy User             @relation("Scanner", fields: [scannedById], references: [id])
+
+  @@unique([sessionId, memberId])
+}
+
+model Badge {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String
+  icon        String
+  criteria    Json
+  createdAt   DateTime @default(now())
+
+  memberBadges MemberBadge[]
+}
+
+model MemberBadge {
+  id         String   @id @default(uuid())
+  memberId   String
+  badgeId    String
+  semester   String
+  awardedAt  DateTime @default(now())
+
+  member User  @relation(fields: [memberId], references: [id])
+  badge  Badge @relation(fields: [badgeId], references: [id])
+
+  @@unique([memberId, badgeId, semester])
+}
+
+model Certificate {
+  id               String              @id @default(uuid())
+  memberId         String
+  category         CertificateCategory
+  achievement      String
+  semester         String
+  verificationCode String              @unique @default(uuid())
+  issuedAt         DateTime            @default(now())
+
+  member User @relation(fields: [memberId], references: [id])
+}
+
+model PointsTransaction {
+  id        String         @id @default(uuid())
+  memberId  String
+  points    Int
+  reason    String
+  category  PointsCategory
+  eventId   String?
+  semester  String
+  createdAt DateTime       @default(now())
+
+  member User   @relation(fields: [memberId], references: [id])
+  event  Event? @relation(fields: [eventId], references: [id])
+}
+
+model Notification {
+  id        String           @id @default(uuid())
+  memberId  String
+  title     String
+  message   String
+  type      NotificationType
+  isRead    Boolean          @default(false)
+  createdAt DateTime         @default(now())
+
+  member User @relation(fields: [memberId], references: [id])
+}
+
+model Reward {
+  id        String         @id @default(uuid())
+  memberId  String
+  category  RewardCategory
+  semester  String
+  criteria  Json
+  awardedAt DateTime       @default(now())
+
+  member User @relation(fields: [memberId], references: [id])
+
+  @@unique([memberId, category, semester])
+}
